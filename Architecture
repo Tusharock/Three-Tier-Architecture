@@ -1,0 +1,151 @@
+Design Three tier Architecture like for example
+
+REFERENCE:- https://medium.com/the-andela-way/designing-a-three-tier-architecture-in-aws-e5c24671f124
+
+Presentation Tier (User Interface):
+The topmost layer is responsible for handling user interactions and displaying information to users.
+It includes the graphical user interface (GUI) components, web pages, or any other means of user interaction.
+This tier communicates with the middle tier to request data processing and retrieval.
+IN THIS I HAVE USE NGINX
+#!/bin/bash
+yum install httpd -y
+systemctl start httpd
+systemctl enable httpd
+echo aston martin db11 > /var/www/html/index.html
+
+step-2
+then launch instance and select public subnet allow port 80
+then take ssh of this instance 
+then install ngnix sevice
+after that go to the 
+#cd /etc/nginx/conf.d
+#vi proxy.conf
+server {
+listen 80;
+root /var/www/html;
+index index.html;
+location / {
+proxy_pass http://private ip of web server:80/;
+ }
+}
+
+save the file
+then
+#systemctl start nginx
+#systemctl enable nginx 
+
+
+
+Application Tier (Business Logic):
+The middle layer, also known as the business logic tier, contains the application's core processing and logic.
+It processes user requests from the presentation tier, performs the necessary computations, and interacts with the data tier to fetch or update data.
+The business logic ensures that the application operates as intended and enforces the rules and policies that govern its behavior.
+FOR APPLICATION REFER 
+FOR APPLICATION I HAVE USED TOMCAT 
+#!/bin/bash
+yum install java -y
+curl -O https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.77/bin/apache-tomcat-8.5.77.tar.gz
+curl -O  https://s3-us-west-2.amazonaws.com/studentapi-cit/student.war
+curl -O  https://s3-us-west-2.amazonaws.com/studentapi-cit/student-rds.sql
+curl -O  https://s3-us-west-2.amazonaws.com/studentapi-cit/mysql-connector.jar
+
+tar -xvzf apache-tomcat-8.5.77.tar.gz -C /opt
+
+mv /student.war  /opt/apache-tomcat-8.5.77/webapps/
+mv /mysql-connector.jar /opt/apache-tomcat-8.5.77/lib/
+
+/opt/apache-tomcat-8.5.77/bin/catalina.sh start
+
+yum install mysql -y
+echo "create database studentapp" | mysql -h database-1.c9jmyhyjylvj.us-east-2.rds.amazonaws.com -uswarup -pswarup123
+mysql -h database-1.c9jmyhyjylvj.us-east-2.rds.amazonaws.com -uswarup -pswarup123 studentapp < student-rds.sql
+
+sed -i '23 i <Resource name="jdbc/TestDB" auth="Container" type="javax.sql.DataSource"' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i '24 i maxTotal="500" maxIdle="30" maxWaitMillis="1000"' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i '25 i username="USERNAME" password="PASSWORD" driverClassName="com.mysql.jdbc.Driver"' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i '26 i url="jdbc:mysql://endpoint link of database:3306/DATABASENAME"/>' /opt/apache-tomcat-8.5.77/conf/context.xml
+
+sed -i 's/USERNAME/swarup/g' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i 's/PASSWORD/swarup123/g' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i 's/endpoint link of database/database-1.c9jmyhyjylvj.us-east-2.rds.amazonaws.com/g' /opt/apache-tomcat-8.5.77/conf/context.xml
+sed -i 's/DATABASENAME/studentapp/g' /opt/apache-tomcat-8.5.77/conf/context.xml
+
+cd /opt/apache-tomcat-8.5.77/bin
+./catalina.sh stop
+./catalina.sh start
+
+
+==========================================================================
+
+Steps :- 
+Create 2 instance one for instance tomcat and second for database
+Database server side :- 
+1)	Launch instance and enable port no 22, 80, 8080, 3306
+2)	Install mariadb 
+•	Yum install mariadb-server –y
+•	Systemctl start mariadb 
+•	Systemctl enable mariadb
+3)	Mysql_secure_installation 
+•	Set root password 
+•	Enter by default credentials 
+4)	Mysql –uuname –ppasswd
+•	Show databases;
+•	Create database studentapp;
+•	Use studentapp;
+•	Past the codes from the file of 
+(
+CREATE TABLE if not exists students(student_id INT NOT NULL AUTO_INCREMENT,
+	student_name VARCHAR(100) NOT NULL,
+    student_addr VARCHAR(100) NOT NULL,
+	student_age VARCHAR(3) NOT NULL,
+	student_qual VARCHAR(20) NOT NULL,
+	student_percent VARCHAR(10) NOT NULL,
+	student_year_passed VARCHAR(10) NOT NULL,
+	PRIMARY KEY (student_id)
+);
+)
+•	Create user ‘uname’ identified by ‘password’;
+•	Grant all privileges on *.* to ‘uname’;
+•	Flush privileges;
+•	Exit
+
+Tomcat server side :- 
+1)	Launch instance and enable port no 22, 80, 8080, 3306
+2)	Yum install java –y
+3)	Curl –O past the link of tomcat 8 (https://downloads.apache.org/tomcat/tomcat-8/v8.5.77/bin/apache-tomcat-8.5.77.tar.gz.asc)
+4)	Tar –xzf and location of tomcat 8 file
+5)	Mv apache-tomcat-8.5.77 /opt
+6)	Cd /opt/apache…../bin
+7)	./catalina.sh start
+8)	Cd ..
+9)	Copy all drive-download-20210119T031517Z-001  file ( students.war file) in ec2-user
+10)	Unzip drive-download-20210119T031517Z-001  
+11)	Cd drive-download-20210119T031517Z-001  
+12)	Cd drive-download-20210119T031517Z-001  
+13)	Mv student.war /opt/apache…../webapps
+14)	Mv connectors.jar  /opt/apache……/lib
+15)	Cd conf
+16)	Vi context.xml
+•	In line no 20 (below the <context> ) paste the code of resource name etc
+(
+<Resource name="jdbc/TestDB" auth="Container" type="javax.sql.DataSource"
+               maxTotal="100" maxIdle="30" maxWaitMillis="10000"
+               username="USERNAME" password="PASSWORD" driverClassName="com.mysql.jdbc.Driver"
+               url="jdbc:mysql://DB-ENDPOINT:3306/DATABASE"/>
+)
+In above enter the uname and passwd which you have created in database instance for database.
+In DB-ENDPOINT replace with the database instance IP
+And last give the database name which you have created in database server.
+•	Save the file 
+•	Cd /opt/apache……./bin 
+•	./catalina.sh stop/start
+17)	Now get the ip of tomcat server and enter in google browser with port no :8080/student
+18)	Put the information it will store in the database server in the database 
+
+
+
+Data Tier (Data Storage and Management):
+The bottommost layer is responsible for managing data storage and retrieval.
+It deals with data access and database management systems, where data is stored persistently.
+The data tier provides an interface to the middle tier for accessing and modifying data.
+I HAVE USED RDS.
